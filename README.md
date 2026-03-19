@@ -1,2 +1,7 @@
 # StremioClient
-A working iPhone Stremio client. Allows user to login to their Stremio account and configure realdebrid options. Allows users to stream any movie or TV show and also download for offline watching.
+- Full Stremio addon protocol (catalog, meta, streams)
+- Real-Debrid integration with smart stream selection
+- Netflix-style downloads with background URLSession
+- Series support with season/episode picker
+- AVKit player with auto-hide controls and X button
+- Download manager with progress, speed, retry, delete
