@@ -24,7 +24,7 @@ struct PlaybackProgress: Identifiable, Codable {
     /// True when worth showing in Continue Watching.
     /// Shows after 30 seconds watched; hides once 92%+ complete.
     var isInProgress: Bool {
-        guard resumeSeconds >= 30 else { return false }
+        guard resumeSeconds >= 15 else { return false }
         guard durationSeconds <= 0 || completionPercent < 0.92 else { return false }
         return true
     }

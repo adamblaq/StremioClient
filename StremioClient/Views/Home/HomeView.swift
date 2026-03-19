@@ -15,7 +15,7 @@ struct HomeView: View {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 28) {
                             // Personalised shelves — hidden until user has watch history
-                            ForYouSectionView(history: watchHistory)
+                            ForYouSectionView()
 
                             ForEach(addonManager.addons) { addon in
                                 ForEach(addon.manifest.catalogs.prefix(3), id: \.self) { catalog in

@@ -3,7 +3,7 @@ import SwiftUI
 struct ForYouSectionView: View {
     @Environment(AddonManager.self) private var addonManager
     @Environment(AppState.self) private var appState
-    let history: WatchHistoryManager
+    @Environment(WatchHistoryManager.self) private var history
 
     @State private var tastePicks: [MetaItem] = []
     @State private var isLoadingTaste = false
