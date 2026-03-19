@@ -1,17 +1,23 @@
-//
-//  StremioClientApp.swift
-//  StremioClient
-//
-//  Created by Adam Blaq on 18/03/2026.
-//
-
 import SwiftUI
 
 @main
 struct StremioClientApp: App {
+    @State private var appState = AppState()
+    @State private var addonManager = AddonManager()
+    @State private var downloadManager = DownloadManager()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            Group {
+                if appState.isLoggedIn {
+                    MainTabView()
+                } else {
+                    LoginView()
+                }
+            }
+            .environment(appState)
+            .environment(addonManager)
+            .environment(downloadManager)
         }
     }
 }
