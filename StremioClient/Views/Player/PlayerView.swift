@@ -94,8 +94,17 @@ struct PlayerView: View {
     private func saveProgress() {
         guard let meta, let player else { return }
         let seconds = player.currentTime().seconds
-        let duration = player.currentItem?.duration.seconds ?? 0
-        guard seconds.isFinite, seconds > 5, duration.isFinite, duration > 10 else { return }
+        guard seconds.isFinite, seconds > 5 else { return }
+
+        // Duration is often NaN early in playback for streaming content.
+        // Fall back to a reasonable episode/movie length so isInProgress stays true.
+        var duration = player.currentItem?.duration.seconds ?? 0
+        if !duration.isFinite || duration < 10 {
+            // Estimate: 45 min for series episodes, 2 hrs for movies
+            let isMovie = (meta.type ?? "movie") == "movie"
+            duration = isMovie ? 7200 : 2700
+        }
+
         watchHistory.updateProgress(
             for: meta,
             season: episode?.season,

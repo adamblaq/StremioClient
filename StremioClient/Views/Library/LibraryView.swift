@@ -37,10 +37,27 @@ struct LibraryView: View {
             }
             .fullScreenCover(item: $selectedDownload) { download in
                 if let url = download.localFileURL {
+                    let metaStub = MetaItem(
+                        id: download.metaId, type: download.metaType,
+                        name: download.title, poster: download.posterURL,
+                        background: nil, description: nil, releaseInfo: nil,
+                        imdbRating: nil, genre: nil, genres: nil, runtime: nil,
+                        cast: nil, director: nil, year: nil, videos: nil
+                    )
+                    let episodeStub: MetaItem.Video? = download.season.map { s in
+                        MetaItem.Video(
+                            id: "\(download.metaId):\(s):\(download.episode ?? 0)",
+                            title: download.episodeTitle, name: download.episodeTitle,
+                            released: nil, season: s, episode: download.episode,
+                            overview: nil, thumbnail: nil
+                        )
+                    }
                     PlayerView(
                         stream: StreamItem(name: download.displayTitle, title: nil,
                                           url: url.absoluteString, infoHash: nil, behaviorHints: nil),
-                        title: download.displayTitle
+                        title: download.displayTitle,
+                        meta: metaStub,
+                        episode: episodeStub
                     )
                 }
             }
