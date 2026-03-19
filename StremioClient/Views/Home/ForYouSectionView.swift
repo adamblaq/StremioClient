@@ -86,18 +86,26 @@ struct ForYouSectionView: View {
         return NavigationLink(value: stub) {
             VStack(alignment: .leading, spacing: 6) {
                 ZStack(alignment: .bottom) {
-                    AsyncImage(url: stub.posterURL) { phase in
-                        switch phase {
-                        case .success(let img): img.resizable().scaledToFill()
-                        default:
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(Theme.surface)
-                                .overlay(ProgressView())
+                    if let posterURL = stub.posterURL {
+                        AsyncImage(url: posterURL) { phase in
+                            switch phase {
+                            case .success(let img):
+                                img.resizable().scaledToFill()
+                            case .failure:
+                                posterPlaceholder
+                            default:
+                                posterPlaceholder.overlay(ProgressView().tint(Theme.accent))
+                            }
                         }
+                        .frame(width: Theme.cardWidth, height: Theme.cardHeight)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .shadow(color: .black.opacity(0.5), radius: 6, y: 4)
+                    } else {
+                        posterPlaceholder
+                            .frame(width: Theme.cardWidth, height: Theme.cardHeight)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .shadow(color: .black.opacity(0.5), radius: 6, y: 4)
                     }
-                    .frame(width: Theme.cardWidth, height: Theme.cardHeight)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .shadow(color: .black.opacity(0.5), radius: 6, y: 4)
 
                     // Progress bar
                     VStack(spacing: 0) {
@@ -140,6 +148,12 @@ struct ForYouSectionView: View {
             .frame(width: Theme.cardWidth)
         }
         .buttonStyle(.plain)
+    }
+
+    private var posterPlaceholder: some View {
+        RoundedRectangle(cornerRadius: 10)
+            .fill(Theme.surface)
+            .overlay(Image(systemName: "film").foregroundStyle(Theme.textSecondary))
     }
 
     // MARK: - Claude shelf
