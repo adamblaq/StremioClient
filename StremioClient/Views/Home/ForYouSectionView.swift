@@ -15,6 +15,13 @@ struct ForYouSectionView: View {
     @State private var isLoadingClaude = false
     @State private var claudeError: String?
 
+    // Direct play from Continue Watching
+    @State private var directPlayStream: StreamItem?
+    @State private var directPlayMeta: MetaItem?
+    @State private var directPlayEpisode: MetaItem.Video?
+    @State private var directPlayLoading: String?   // progress.id being fetched
+    @State private var showDirectPlayer = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
 
@@ -51,6 +58,16 @@ struct ForYouSectionView: View {
         .task { await loadTaste() }
         .task(id: appState.tmdbApiKey) { await loadBecause() }
         .task(id: appState.claudeApiKey) { await loadClaude() }
+        .fullScreenCover(isPresented: $showDirectPlayer) {
+            if let stream = directPlayStream, let meta = directPlayMeta {
+                PlayerView(
+                    stream: stream,
+                    title: meta.name,
+                    meta: meta,
+                    episode: directPlayEpisode
+                )
+            }
+        }
     }
 
     // MARK: - Continue Watching
@@ -74,27 +91,18 @@ struct ForYouSectionView: View {
     }
 
     private func continueCard(_ progress: PlaybackProgress) -> some View {
-        let stub = MetaItem(
-            id: progress.metaId,
-            type: progress.type,
-            name: progress.name,
-            poster: progress.poster,
-            background: nil, description: nil, releaseInfo: nil,
-            imdbRating: nil, genre: nil, genres: nil, runtime: nil,
-            cast: nil, director: nil, year: nil, videos: nil
-        )
-        return NavigationLink(value: stub) {
+        let isLoading = directPlayLoading == progress.id
+        return Button {
+            Task { await startDirectPlay(progress) }
+        } label: {
             VStack(alignment: .leading, spacing: 6) {
                 ZStack(alignment: .bottom) {
-                    if let posterURL = stub.posterURL {
-                        AsyncImage(url: posterURL) { phase in
+                    if let url = progress.poster.flatMap(URL.init) {
+                        AsyncImage(url: url) { phase in
                             switch phase {
-                            case .success(let img):
-                                img.resizable().scaledToFill()
-                            case .failure:
-                                posterPlaceholder
-                            default:
-                                posterPlaceholder.overlay(ProgressView().tint(Theme.accent))
+                            case .success(let img): img.resizable().scaledToFill()
+                            case .failure:          posterPlaceholder
+                            default:                posterPlaceholder
                             }
                         }
                         .frame(width: Theme.cardWidth, height: Theme.cardHeight)
@@ -105,6 +113,14 @@ struct ForYouSectionView: View {
                             .frame(width: Theme.cardWidth, height: Theme.cardHeight)
                             .clipShape(RoundedRectangle(cornerRadius: 10))
                             .shadow(color: .black.opacity(0.5), radius: 6, y: 4)
+                    }
+
+                    // Loading overlay
+                    if isLoading {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.black.opacity(0.5))
+                            .frame(width: Theme.cardWidth, height: Theme.cardHeight)
+                            .overlay(ProgressView().tint(.white))
                     }
 
                     // Progress bar
@@ -148,6 +164,7 @@ struct ForYouSectionView: View {
             .frame(width: Theme.cardWidth)
         }
         .buttonStyle(.plain)
+        .disabled(directPlayLoading != nil)
     }
 
     private var posterPlaceholder: some View {
@@ -339,6 +356,59 @@ struct ForYouSectionView: View {
             .clipShape(RoundedRectangle(cornerRadius: 14))
             .padding(.horizontal)
         }
+    }
+
+    // MARK: - Direct play from Continue Watching
+
+    private func startDirectPlay(_ progress: PlaybackProgress) async {
+        guard directPlayLoading == nil else { return }
+        directPlayLoading = progress.id
+
+        let type = progress.type
+        let streamId: String
+        if let s = progress.season, let e = progress.episode {
+            streamId = "\(progress.metaId):\(s):\(e)"
+        } else {
+            streamId = progress.metaId
+        }
+
+        let streams = (try? await AddonClient.shared.fetchStreams(
+            from: addonManager.addons, type: type, id: streamId
+        )) ?? []
+
+        let best: StreamItem?
+        if appState.isRealDebridConnected {
+            best = StreamSelector.selectBest(from: streams)
+        } else {
+            best = streams.first(where: { $0.isDirectPlay })
+        }
+
+        directPlayLoading = nil
+
+        guard let best else { return }
+
+        // Reconstruct a minimal MetaItem and Video for the player
+        directPlayMeta = MetaItem(
+            id: progress.metaId, type: progress.type, name: progress.name,
+            poster: progress.poster, background: nil, description: nil, releaseInfo: nil,
+            imdbRating: nil, genre: nil, genres: nil, runtime: nil,
+            cast: nil, director: nil, year: nil, videos: nil, trailers: nil
+        )
+
+        if let s = progress.season, let e = progress.episode {
+            directPlayEpisode = MetaItem.Video(
+                id: "\(progress.metaId):\(s):\(e)",
+                title: progress.episodeName,
+                name: progress.episodeName,
+                released: nil, season: s, episode: e,
+                overview: nil, thumbnail: nil
+            )
+        } else {
+            directPlayEpisode = nil
+        }
+
+        directPlayStream = best
+        showDirectPlayer = true
     }
 
     // MARK: - Data loading

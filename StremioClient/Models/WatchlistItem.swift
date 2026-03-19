@@ -16,7 +16,7 @@ struct WatchlistItem: Identifiable, Codable {
             id: id, type: type, name: name, poster: poster,
             background: nil, description: nil, releaseInfo: year,
             imdbRating: nil, genre: nil, genres: nil, runtime: nil,
-            cast: nil, director: nil, year: year, videos: nil
+            cast: nil, director: nil, year: year, videos: nil, trailers: nil
         )
     }
 }

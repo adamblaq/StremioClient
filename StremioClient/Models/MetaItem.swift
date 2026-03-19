@@ -16,6 +16,7 @@ struct MetaItem: Identifiable, Codable, Hashable {
     let director: [String]?
     let year: String?
     let videos: [Video]?
+    let trailers: [Trailer]?
 
     var allGenres: [String]? { genre ?? genres }
 
@@ -35,6 +36,11 @@ struct MetaItem: Identifiable, Codable, Hashable {
     var posterURL: URL? { poster.flatMap(URL.init) }
     var backgroundURL: URL? { background.flatMap(URL.init) }
     var displayYear: String { releaseInfo ?? year ?? "" }
+
+    struct Trailer: Codable, Hashable {
+        let source: String   // YouTube video ID
+        let type: String?    // "Trailer", "Teaser", etc.
+    }
 }
 
 struct CatalogResponse: Codable {

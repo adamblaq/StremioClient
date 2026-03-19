@@ -19,8 +19,15 @@ struct DetailView: View {
     @State private var selectedSeason: Int = 1
     @State private var loadingEpisode: MetaItem.Video?   // which episode row is spinning
     @State private var activeEpisode: MetaItem.Video?    // episode being played (for PlayerView)
+    @State private var trailerActive = false
+    @State private var trailerMuted = true
 
     private var displayItem: MetaItem { fullMeta ?? item }
+
+    private var trailerVideoId: String? {
+        fullMeta?.trailers?.first(where: { $0.type == "Trailer" })?.source
+            ?? fullMeta?.trailers?.first?.source
+    }
 
     // MARK: - Computed helpers for series
 
@@ -37,6 +44,16 @@ struct DetailView: View {
         (displayItem.videos ?? [])
             .filter { $0.season == selectedSeason }
             .sorted { ($0.episode ?? 0) < ($1.episode ?? 0) }
+    }
+
+    /// All episodes sorted by season/episode — passed to PlayerView for auto-play.
+    private var sortedEpisodes: [MetaItem.Video] {
+        (displayItem.videos ?? [])
+            .filter { ($0.season ?? 0) > 0 && $0.episode != nil }
+            .sorted { a, b in
+                guard let as_ = a.season, let bs = b.season else { return false }
+                return as_ != bs ? as_ < bs : (a.episode ?? 0) < (b.episode ?? 0)
+            }
     }
 
     /// The first real episode of the series (S1E1), skipping season 0 specials.
@@ -68,6 +85,15 @@ struct DetailView: View {
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await loadMeta() }
+        // Auto-play trailer after meta loads (trailerVideoId becomes non-nil)
+        .task(id: trailerVideoId) {
+            guard trailerVideoId != nil else { return }
+            try? await Task.sleep(for: .seconds(1.5))
+            guard !Task.isCancelled, trailerVideoId != nil else { return }
+            trailerMuted = !appState.trailerAutoplaySound
+            trailerActive = true
+        }
+        .onDisappear { trailerActive = false }
         .sheet(isPresented: $showStreamPicker) {
             StreamPickerView(streams: streams, meta: displayItem) { stream in
                 selectedStream = stream
@@ -76,7 +102,13 @@ struct DetailView: View {
         }
         .fullScreenCover(isPresented: $showPlayer) {
             if let stream = selectedStream {
-                PlayerView(stream: stream, title: displayItem.name, meta: displayItem, episode: activeEpisode)
+                PlayerView(
+                    stream: stream,
+                    title: displayItem.name,
+                    meta: displayItem,
+                    episode: activeEpisode,
+                    allEpisodes: sortedEpisodes
+                )
             }
         }
         .alert("No Suitable Stream Found", isPresented: $noStreamFound) {
@@ -178,6 +210,20 @@ struct DetailView: View {
                 }
                 .disabled(isLoadingStreams)
 
+                // Trailer button — shown if Cinemeta provides a YouTube trailer
+                if let trailer = displayItem.trailers?.first(where: { $0.type == "Trailer" || $0.type == nil }),
+                   let url = URL(string: "https://www.youtube.com/watch?v=\(trailer.source)") {
+                    Link(destination: url) {
+                        Image(systemName: "film.stack")
+                            .font(.headline)
+                            .foregroundStyle(Theme.textPrimary)
+                            .padding(.vertical, 12)
+                            .padding(.horizontal, 14)
+                            .background(Theme.surface)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                }
+
                 // Download button — for movies; for series, use per-episode buttons below
                 if displayItem.type == "movie" {
                     let dl = downloadManager.existingDownload(metaId: item.id)
@@ -190,13 +236,21 @@ struct DetailView: View {
         .padding()
         .frame(maxWidth: .infinity, minHeight: 340, alignment: .bottomLeading)
         .background {
-            AsyncImage(url: displayItem.backgroundURL ?? displayItem.posterURL) { phase in
-                switch phase {
-                case .success(let image): image.resizable().scaledToFill()
-                default: Theme.surface
+            ZStack {
+                AsyncImage(url: displayItem.backgroundURL ?? displayItem.posterURL) { phase in
+                    switch phase {
+                    case .success(let image): image.resizable().scaledToFill()
+                    default: Theme.surface
+                    }
+                }
+                .clipped()
+
+                if trailerActive, let vid = trailerVideoId {
+                    YouTubePlayerView(videoId: vid, muted: trailerMuted)
+                        .transition(.opacity)
                 }
             }
-            .clipped()
+            .animation(.easeIn(duration: 0.8), value: trailerActive)
             .overlay {
                 LinearGradient(
                     stops: [
@@ -208,6 +262,22 @@ struct DetailView: View {
                 )
             }
         }
+        .overlay(alignment: .topTrailing) {
+            if trailerActive {
+                Button { trailerMuted.toggle() } label: {
+                    Image(systemName: trailerMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                        .font(.body)
+                        .foregroundStyle(.white)
+                        .padding(10)
+                        .background(.black.opacity(0.5))
+                        .clipShape(Circle())
+                }
+                .padding(.top, 52)
+                .padding(.trailing, 16)
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: trailerActive)
     }
 
     private var smartPlayLabel: String {

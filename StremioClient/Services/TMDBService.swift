@@ -113,7 +113,8 @@ actor TMDBService {
             cast: nil,
             director: nil,
             year: year,
-            videos: nil
+            videos: nil,
+            trailers: nil
         )
     }
 

@@ -18,19 +18,22 @@ class AppState {
 
     var tmdbApiKey: String = ""
     var claudeApiKey: String = ""
+    var trailerAutoplaySound: Bool = false
 
-    private let authKeyStorageKey    = "authKey"
-    private let userStorageKey       = "user"
-    private let rdKeyStorageKey      = "rdKey"
-    private let rdUserStorageKey     = "rdUser"
-    private let tmdbKeyStorageKey    = "tmdbApiKey"
-    private let claudeKeyStorageKey  = "claudeApiKey"
+    private let authKeyStorageKey      = "authKey"
+    private let userStorageKey         = "user"
+    private let rdKeyStorageKey        = "rdKey"
+    private let rdUserStorageKey       = "rdUser"
+    private let tmdbKeyStorageKey      = "tmdbApiKey"
+    private let claudeKeyStorageKey    = "claudeApiKey"
+    private let trailerSoundStorageKey = "trailerAutoplaySound"
 
     init() {
-        authKey       = UserDefaults.standard.string(forKey: authKeyStorageKey)
-        realDebridKey = UserDefaults.standard.string(forKey: rdKeyStorageKey)
-        tmdbApiKey    = UserDefaults.standard.string(forKey: tmdbKeyStorageKey) ?? ""
-        claudeApiKey  = UserDefaults.standard.string(forKey: claudeKeyStorageKey) ?? ""
+        authKey              = UserDefaults.standard.string(forKey: authKeyStorageKey)
+        realDebridKey        = UserDefaults.standard.string(forKey: rdKeyStorageKey)
+        tmdbApiKey           = UserDefaults.standard.string(forKey: tmdbKeyStorageKey) ?? ""
+        claudeApiKey         = UserDefaults.standard.string(forKey: claudeKeyStorageKey) ?? ""
+        trailerAutoplaySound = UserDefaults.standard.bool(forKey: trailerSoundStorageKey)
         if let data = UserDefaults.standard.data(forKey: userStorageKey) {
             user = try? JSONDecoder().decode(StremioUser.self, from: data)
         }
@@ -83,6 +86,10 @@ class AppState {
 
     func saveClaudeKey() {
         UserDefaults.standard.set(claudeApiKey, forKey: claudeKeyStorageKey)
+    }
+
+    func saveTrailerAutoplaySound() {
+        UserDefaults.standard.set(trailerAutoplaySound, forKey: trailerSoundStorageKey)
     }
 
     private func persist() {

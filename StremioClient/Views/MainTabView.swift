@@ -215,6 +215,31 @@ struct SettingsView: View {
                     .listRowBackground(Theme.surface)
                     .onAppear { claudeKeyDraft = "" }
 
+                    // Trailers
+                    Section {
+                        Toggle(isOn: Binding(
+                            get: { appState.trailerAutoplaySound },
+                            set: { appState.trailerAutoplaySound = $0; appState.saveTrailerAutoplaySound() }
+                        )) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "speaker.wave.2.fill")
+                                    .foregroundStyle(Theme.accent)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Play trailers with sound")
+                                        .font(.subheadline)
+                                        .foregroundStyle(Theme.textPrimary)
+                                    Text("Trailers auto-play muted by default")
+                                        .font(.caption)
+                                        .foregroundStyle(Theme.textSecondary)
+                                }
+                            }
+                        }
+                        .tint(Theme.accent)
+                    } header: {
+                        Text("Trailers").foregroundStyle(Theme.textSecondary)
+                    }
+                    .listRowBackground(Theme.surface)
+
                     // Sign out
                     Section {
                         Button(role: .destructive) {

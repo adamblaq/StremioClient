@@ -42,7 +42,7 @@ struct LibraryView: View {
                         name: download.title, poster: download.posterURL,
                         background: nil, description: nil, releaseInfo: nil,
                         imdbRating: nil, genre: nil, genres: nil, runtime: nil,
-                        cast: nil, director: nil, year: nil, videos: nil
+                        cast: nil, director: nil, year: nil, videos: nil, trailers: nil
                     )
                     let episodeStub: MetaItem.Video? = download.season.map { s in
                         MetaItem.Video(
