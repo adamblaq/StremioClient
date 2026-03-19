@@ -47,6 +47,10 @@ struct StreamSelector {
         if let t3 = best(parsed.filter { $0.isRDCached && $0.qualityP >= minQualityP && underSize($0) }) {
             return t3
         }
+        // Tier 4: Any RD-cached stream regardless of size — user has large files and wants to play
+        if let t4 = best(parsed.filter { $0.isRDCached }) {
+            return t4
+        }
         return nil
     }
 

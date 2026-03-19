@@ -8,7 +8,7 @@ class DownloadManager: NSObject {
     private var activeTasks: [UUID: URLSessionDownloadTask] = [:]
     private var backgroundSession: URLSession!
     // For speed calculation: last measurement per download
-    private var lastProgressSnapshot: [UUID: (bytes: Int64, time: Date)] = [:]
+    private var speedSamples: [UUID: [(bytes: Int64, time: Date)]] = [:]
 
     private let storageKey = "downloads"
     private var documentsDir: URL {
@@ -51,7 +51,7 @@ class DownloadManager: NSObject {
     func cancelDownload(_ download: Download) {
         activeTasks[download.id]?.cancel()
         activeTasks.removeValue(forKey: download.id)
-        lastProgressSnapshot.removeValue(forKey: download.id)
+        speedSamples.removeValue(forKey: download.id)
         if let path = download.localPath {
             try? FileManager.default.removeItem(atPath: path)
         }
@@ -93,18 +93,22 @@ class DownloadManager: NSObject {
     private func updateProgress(id: UUID, bytesWritten: Int64, totalBytes: Int64) {
         guard let i = downloads.firstIndex(where: { $0.id == id }) else { return }
 
-        // Speed: Δbytes / Δtime since last update
+        // Speed: rolling average over the last 2 seconds of samples
         let now = Date()
+        let windowSeconds: TimeInterval = 2.0
+        var samples = speedSamples[id] ?? []
+        samples.append((bytesWritten, now))
+        // Drop samples older than the window
+        samples = samples.filter { now.timeIntervalSince($0.time) <= windowSeconds }
+        speedSamples[id] = samples
+
         var speed = downloads[i].speedBytesPerSecond
-        if let snap = lastProgressSnapshot[id] {
-            let dt = now.timeIntervalSince(snap.time)
+        if samples.count >= 2, let oldest = samples.first {
+            let dt = now.timeIntervalSince(oldest.time)
             if dt > 0 {
-                // Smooth with 30% new sample so the number doesn't jump wildly
-                let instant = Double(bytesWritten - snap.bytes) / dt
-                speed = speed * 0.7 + instant * 0.3
+                speed = Double(bytesWritten - oldest.bytes) / dt
             }
         }
-        lastProgressSnapshot[id] = (bytesWritten, now)
 
         downloads[i].downloadedBytes = bytesWritten
         downloads[i].totalBytes = totalBytes
@@ -123,7 +127,7 @@ class DownloadManager: NSObject {
         downloads[i].progress = 1.0
         downloads[i].speedBytesPerSecond = 0
         activeTasks.removeValue(forKey: id)
-        lastProgressSnapshot.removeValue(forKey: id)
+        speedSamples.removeValue(forKey: id)
         saveToDisk()
         print("[Download] Completed: \(dest.lastPathComponent)")
     }

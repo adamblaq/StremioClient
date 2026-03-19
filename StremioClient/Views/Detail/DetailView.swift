@@ -77,10 +77,16 @@ struct DetailView: View {
             }
         }
         .alert("No Suitable Stream Found", isPresented: $noStreamFound) {
-            Button("Browse Streams") { showStreamPicker = true }
+            Button("Browse Streams") {
+                Task {
+                    let ep = displayItem.type == "series" ? firstEpisode : nil
+                    if streams.isEmpty { await loadStreams(for: ep) }
+                    showStreamPicker = true
+                }
+            }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Couldn't find a 1080p+ stream under 15 GB cached on Real-Debrid. You can browse all available streams manually.")
+            Text("Couldn't find a stream that meets the auto-play criteria. You can browse all available streams manually.")
         }
         .onChange(of: availableSeasons) { _, seasons in
             // Only update if current selection isn't in the list yet (initial load)
