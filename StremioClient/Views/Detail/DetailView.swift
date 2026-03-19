@@ -6,6 +6,7 @@ struct DetailView: View {
     @Environment(AddonManager.self) private var addonManager
     @Environment(AppState.self) private var appState
     @Environment(DownloadManager.self) private var downloadManager
+    @Environment(WatchHistoryManager.self) private var watchHistory
     @State private var fullMeta: MetaItem?
     @State private var streams: [StreamItem] = []
     @State private var isLoadingStreams = false
@@ -14,8 +15,10 @@ struct DetailView: View {
     @State private var selectedStream: StreamItem?
     @State private var isLoadingMeta = true
     @State private var noStreamFound = false
+    @State private var noStreamsAtAll = false
     @State private var selectedSeason: Int = 1
     @State private var loadingEpisode: MetaItem.Video?   // which episode row is spinning
+    @State private var activeEpisode: MetaItem.Video?    // episode being played (for PlayerView)
 
     private var displayItem: MetaItem { fullMeta ?? item }
 
@@ -73,20 +76,19 @@ struct DetailView: View {
         }
         .fullScreenCover(isPresented: $showPlayer) {
             if let stream = selectedStream {
-                PlayerView(stream: stream, title: displayItem.name)
+                PlayerView(stream: stream, title: displayItem.name, meta: displayItem, episode: activeEpisode)
             }
         }
         .alert("No Suitable Stream Found", isPresented: $noStreamFound) {
-            Button("Browse Streams") {
-                Task {
-                    let ep = displayItem.type == "series" ? firstEpisode : nil
-                    if streams.isEmpty { await loadStreams(for: ep) }
-                    showStreamPicker = true
-                }
-            }
+            Button("Browse All Streams") { showStreamPicker = true }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Couldn't find a stream that meets the auto-play criteria. You can browse all available streams manually.")
+            Text("Streams were found but none are cached on Real-Debrid. Browse manually to pick one.")
+        }
+        .alert("No Streams Found", isPresented: $noStreamsAtAll) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("No streams are available for this title from your installed addons. Try adding more addons in the Addons tab.")
         }
         .onChange(of: availableSeasons) { _, seasons in
             // Only update if current selection isn't in the list yet (initial load)
@@ -426,16 +428,28 @@ struct DetailView: View {
             print("[SmartPlay] \(s.name ?? "?") | \(s.title ?? "?") | url=\(s.url ?? "nil") | q=\(parsed?.qualityP ?? 0)p | size=\(parsed?.sizeGB.map { "\($0)GB" } ?? "?") | RD=\(parsed?.isRDCached ?? false)")
         }
 
+        if streams.isEmpty {
+            print("[SmartPlay] No streams returned by any addon")
+            noStreamsAtAll = true
+            return
+        }
+
         if appState.isRealDebridConnected {
             if let best = StreamSelector.selectBest(from: streams) {
                 print("[SmartPlay] Selected: \(best.name ?? "?") | \(best.url ?? "nil")")
+                // Record watch event before launching player
+                watchHistory.record(displayItem, season: episode?.season, episode: episode?.episode)
                 selectedStream = best
+                activeEpisode = episode
                 showPlayer = true
             } else {
-                print("[SmartPlay] No stream met quality/size criteria")
+                print("[SmartPlay] Streams found but none meet criteria — offering manual browse")
                 noStreamFound = true
             }
         } else {
+            // Record event when user is about to pick a stream manually
+            watchHistory.record(displayItem, season: episode?.season, episode: episode?.episode)
+            activeEpisode = episode
             showStreamPicker = true
         }
     }

@@ -36,6 +36,10 @@ struct SettingsView: View {
     @Environment(AddonManager.self) private var addonManager
 
     @State private var showRDSetup = false
+    @State private var tmdbKeyDraft = ""
+    @State private var showTMDBField = false
+    @State private var claudeKeyDraft = ""
+    @State private var showClaudeField = false
 
     var body: some View {
         NavigationStack {
@@ -110,6 +114,106 @@ struct SettingsView: View {
                         Text("Streaming").foregroundStyle(Theme.textSecondary)
                     }
                     .listRowBackground(Theme.surface)
+
+                    // TMDB recommendations
+                    Section {
+                        if appState.tmdbApiKey.isEmpty || showTMDBField {
+                            VStack(alignment: .leading, spacing: 8) {
+                                TextField("TMDB API Key (v3 auth)", text: $tmdbKeyDraft)
+                                    .autocorrectionDisabled()
+                                    .textInputAutocapitalization(.never)
+                                    .padding()
+                                    .background(Theme.background)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    .foregroundStyle(Theme.textPrimary)
+                                Text("Free at themoviedb.org → Settings → API")
+                                    .font(.caption)
+                                    .foregroundStyle(Theme.textSecondary)
+                                Button("Save Key") {
+                                    appState.tmdbApiKey = tmdbKeyDraft.trimmingCharacters(in: .whitespaces)
+                                    appState.saveTmdbKey()
+                                    showTMDBField = false
+                                }
+                                .font(.caption.bold())
+                                .foregroundStyle(Theme.accent)
+                                .disabled(tmdbKeyDraft.trimmingCharacters(in: .whitespaces).isEmpty)
+                            }
+                        } else {
+                            HStack {
+                                Image(systemName: "sparkles")
+                                    .foregroundStyle(Theme.accent)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("TMDB Connected")
+                                        .font(.subheadline.bold())
+                                        .foregroundStyle(Theme.textPrimary)
+                                    Text("\"Because You Watched\" recommendations enabled")
+                                        .font(.caption)
+                                        .foregroundStyle(Theme.textSecondary)
+                                }
+                                Spacer()
+                                Button("Change") {
+                                    tmdbKeyDraft = appState.tmdbApiKey
+                                    showTMDBField = true
+                                }
+                                .font(.caption)
+                                .foregroundStyle(Theme.accent)
+                            }
+                        }
+                    } header: {
+                        Text("Recommendations").foregroundStyle(Theme.textSecondary)
+                    }
+                    .listRowBackground(Theme.surface)
+                    .onAppear { tmdbKeyDraft = appState.tmdbApiKey }
+
+                    // Claude AI recommendations
+                    Section {
+                        if appState.claudeApiKey.isEmpty || showClaudeField {
+                            VStack(alignment: .leading, spacing: 8) {
+                                SecureField("Claude API Key (sk-ant-...)", text: $claudeKeyDraft)
+                                    .autocorrectionDisabled()
+                                    .textInputAutocapitalization(.never)
+                                    .padding()
+                                    .background(Theme.background)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    .foregroundStyle(Theme.textPrimary)
+                                Text("Free at console.anthropic.com — uses Claude Haiku (very low cost)")
+                                    .font(.caption)
+                                    .foregroundStyle(Theme.textSecondary)
+                                Button("Save Key") {
+                                    appState.claudeApiKey = claudeKeyDraft.trimmingCharacters(in: .whitespaces)
+                                    appState.saveClaudeKey()
+                                    showClaudeField = false
+                                }
+                                .font(.caption.bold())
+                                .foregroundStyle(Theme.accent)
+                                .disabled(claudeKeyDraft.trimmingCharacters(in: .whitespaces).isEmpty)
+                            }
+                        } else {
+                            HStack {
+                                Image(systemName: "brain")
+                                    .foregroundStyle(Theme.accent)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("AI Recommendations On")
+                                        .font(.subheadline.bold())
+                                        .foregroundStyle(Theme.textPrimary)
+                                    Text("\"Curated For You\" shelf powered by Claude")
+                                        .font(.caption)
+                                        .foregroundStyle(Theme.textSecondary)
+                                }
+                                Spacer()
+                                Button("Change") {
+                                    claudeKeyDraft = ""
+                                    showClaudeField = true
+                                }
+                                .font(.caption)
+                                .foregroundStyle(Theme.accent)
+                            }
+                        }
+                    } header: {
+                        Text("AI Recommendations").foregroundStyle(Theme.textSecondary)
+                    }
+                    .listRowBackground(Theme.surface)
+                    .onAppear { claudeKeyDraft = "" }
 
                     // Sign out
                     Section {

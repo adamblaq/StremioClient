@@ -1,11 +1,16 @@
 import SwiftUI
 import AVKit
+import Combine
 
 struct PlayerView: View {
     let stream: StreamItem
     let title: String
+    var meta: MetaItem? = nil           // nil when playing offline downloads
+    var episode: MetaItem.Video? = nil
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(WatchHistoryManager.self) private var watchHistory
+
     @State private var player: AVPlayer?
     @State private var errorMessage: String?
     @State private var setupTask: Task<Void, Never>?
@@ -49,6 +54,7 @@ struct PlayerView: View {
             // X button fades out after 3 s of inactivity, like native video controls
             if errorMessage == nil {
                 Button {
+                    saveProgress()
                     setupTask?.cancel()
                     player?.pause()
                     dismiss()
@@ -64,20 +70,40 @@ struct PlayerView: View {
                 .animation(.easeInOut(duration: 0.3), value: showControls)
             }
         }
-        // simultaneousGesture on the ZStack parent fires via touch bubbling from the
-        // AVKit UIKit view below, without blocking VideoPlayer's own controls.
         .simultaneousGesture(TapGesture().onEnded { bumpControls() })
         .onAppear {
             setupTask = Task { await setupPlayer() }
             scheduleHide()
         }
         .onDisappear {
+            saveProgress()
             setupTask?.cancel()
             hideTask?.cancel()
             player?.pause()
         }
+        // Save progress every 10 seconds while playing
+        .onReceive(Timer.publish(every: 10, on: .main, in: .common).autoconnect()) { _ in
+            saveProgress()
+        }
         .preferredColorScheme(.dark)
         .persistentSystemOverlays(.hidden)
+    }
+
+    // MARK: - Progress tracking
+
+    private func saveProgress() {
+        guard let meta, let player else { return }
+        let seconds = player.currentTime().seconds
+        let duration = player.currentItem?.duration.seconds ?? 0
+        guard seconds.isFinite, seconds > 5, duration.isFinite, duration > 10 else { return }
+        watchHistory.updateProgress(
+            for: meta,
+            season: episode?.season,
+            episode: episode?.episode,
+            episodeName: episode?.displayName,
+            seconds: seconds,
+            duration: duration
+        )
     }
 
     // MARK: - Control visibility
@@ -110,9 +136,6 @@ struct PlayerView: View {
 
         let playbackURL: URL
         if url.isFileURL {
-            // Rebuild via fileURLWithPath so iOS resolves /var → /private/var symlinks.
-            // URL(string: "file:///var/...") gives the literal path; AVFoundation then
-            // can't open it because the real filesystem path is /private/var/...
             let resolvedURL = URL(fileURLWithPath: url.path)
             guard FileManager.default.fileExists(atPath: resolvedURL.path) else {
                 errorMessage = "Downloaded file not found. Please delete it and re-download."
@@ -120,9 +143,6 @@ struct PlayerView: View {
             }
             playbackURL = resolvedURL
         } else {
-            // Torrentio resolve URLs cause an EXC_BAD_ACCESS crash in AVFoundation's
-            // QUIC stack. We resolve the redirect using NWConnection (TCP-only, no QUIC)
-            // to get the real-debrid.com CDN URL before touching AVPlayer.
             let resolved = await RedirectResolver.resolve(url)
             guard !Task.isCancelled else { return }
             guard resolved != url else {
@@ -133,18 +153,22 @@ struct PlayerView: View {
             playbackURL = resolved
         }
 
-        // Real-Debrid CDN and some other hosts reject requests without a browser User-Agent.
-        // HTTP headers are safely ignored for local file:// URLs.
         let asset = AVURLAsset(url: playbackURL, options: [
             "AVURLAssetHTTPHeaderFieldsKey": [
                 "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148"
             ]
         ])
         let item = AVPlayerItem(asset: asset)
+
+        // Seek to resume position if we have one
+        if let meta, let seconds = resumeSeconds(for: meta), seconds > 5 {
+            let seekTime = CMTime(seconds: seconds, preferredTimescale: 600)
+            await item.seek(to: seekTime, toleranceBefore: .zero, toleranceAfter: .zero)
+        }
+
         let avPlayer = AVPlayer(playerItem: item)
         player = avPlayer
 
-        // AsyncStream + KVO: thread-safe, terminates after first definitive status.
         let statusStream = AsyncStream<(AVPlayerItem.Status, (any Error)?)> { cont in
             let obs = item.observe(\.status, options: [.initial, .new]) { observed, _ in
                 switch observed.status {
@@ -182,5 +206,13 @@ struct PlayerView: View {
             }
         }
     }
-}
 
+    private func resumeSeconds(for meta: MetaItem) -> Double? {
+        let pct = watchHistory.completionPercent(
+            metaId: meta.id, season: episode?.season, episode: episode?.episode
+        )
+        guard pct > 0.03 && pct < 0.92 else { return nil }
+        let pid = PlaybackProgress.id(metaId: meta.id, season: episode?.season, episode: episode?.episode)
+        return watchHistory.progressMap[pid]?.resumeSeconds
+    }
+}

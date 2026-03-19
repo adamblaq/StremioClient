@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HomeView: View {
     @Environment(AddonManager.self) private var addonManager
+    @Environment(WatchHistoryManager.self) private var watchHistory
 
     var body: some View {
         NavigationStack {
@@ -13,6 +14,9 @@ struct HomeView: View {
                 } else {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 28) {
+                            // Personalised shelves — hidden until user has watch history
+                            ForYouSectionView(history: watchHistory)
+
                             ForEach(addonManager.addons) { addon in
                                 ForEach(addon.manifest.catalogs.prefix(3), id: \.self) { catalog in
                                     CatalogRowView(
