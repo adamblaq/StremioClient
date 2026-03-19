@@ -6,13 +6,41 @@ class WatchHistoryManager {
     private(set) var events: [WatchEvent] = []
     private(set) var progressMap: [String: PlaybackProgress] = [:]
     private(set) var feedback: [String: WatchFeedback] = [:]
+    private(set) var watchlist: [String: WatchlistItem] = [:]   // keyed by metaId
 
-    private let eventsKey   = "watchHistory"
-    private let progressKey = "watchProgress"
-    private let feedbackKey = "watchFeedback"
+    private let eventsKey    = "watchHistory"
+    private let progressKey  = "watchProgress"
+    private let feedbackKey  = "watchFeedback"
+    private let watchlistKey = "watchlist"
 
-    init() {
-        loadFromDisk()
+    init() { loadFromDisk() }
+
+    // MARK: - Watchlist
+
+    func saveToWatchlist(_ item: MetaItem) {
+        watchlist[item.id] = WatchlistItem(
+            id: item.id,
+            type: item.type ?? "movie",
+            name: item.name,
+            poster: item.poster,
+            year: item.displayYear.isEmpty ? nil : item.displayYear,
+            savedAt: Date()
+        )
+        save(watchlist, key: watchlistKey)
+    }
+
+    func removeFromWatchlist(_ metaId: String) {
+        watchlist.removeValue(forKey: metaId)
+        save(watchlist, key: watchlistKey)
+    }
+
+    func isInWatchlist(_ metaId: String) -> Bool {
+        watchlist[metaId] != nil
+    }
+
+    /// All saved items, most recently saved first.
+    var watchlistItems: [WatchlistItem] {
+        watchlist.values.sorted { $0.savedAt > $1.savedAt }
     }
 
     // MARK: - Watch events
@@ -106,22 +134,32 @@ class WatchHistoryManager {
 
     // MARK: - Preference profile (used by RecommendationEngine)
 
-    /// Genre affinity weights (0–1), recency-decayed and completion-weighted.
+    /// Genre affinity weights (0–1), recency-decayed, completion-weighted,
+    /// and boosted 3× for watchlisted items (strongest intent signal).
     var genreWeights: [String: Double] {
         var raw: [String: Double] = [:]
         let now = Date()
+
+        // Watched events
         for event in events {
             let age = now.timeIntervalSince(event.watchedAt)
-            let decay = exp(-age / (30 * 86_400) * 0.693)   // 30-day half-life
+            let decay = exp(-age / (30 * 86_400) * 0.693)
             let pid = PlaybackProgress.id(metaId: event.metaId, season: event.season, episode: event.episode)
-            let completion = progressMap[pid]?.completionPercent ?? 0.6  // assume 60% if no data
-            let qualityW = 0.4 + completion * 0.6   // 0.4–1.0 based on how much they watched
+            let completion = progressMap[pid]?.completionPercent ?? 0.6
+            let qualityW = 0.4 + completion * 0.6
+            let heartBoost = watchlist[event.metaId] != nil ? 3.0 : 1.0
             for genre in event.genres {
-                raw[genre, default: 0] += decay * qualityW
+                raw[genre, default: 0] += decay * qualityW * heartBoost
             }
         }
+
+        // Watchlisted items not yet watched get their own genre signal
+        // (we don't have genre data here without fetching meta, so this
+        //  is handled in RecommendationEngine via watchlistIds)
         return normalized(raw)
     }
+
+    var watchlistIds: Set<String> { Set(watchlist.keys) }
 
     var directorWeights: [String: Double] {
         weightedNames(events.flatMap(\.director))
@@ -173,6 +211,10 @@ class WatchHistoryManager {
         if let data = UserDefaults.standard.data(forKey: feedbackKey),
            let saved = try? JSONDecoder().decode([String: WatchFeedback].self, from: data) {
             feedback = saved
+        }
+        if let data = UserDefaults.standard.data(forKey: watchlistKey),
+           let saved = try? JSONDecoder().decode([String: WatchlistItem].self, from: data) {
+            watchlist = saved
         }
     }
 }

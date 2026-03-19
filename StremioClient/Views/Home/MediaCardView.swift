@@ -23,7 +23,22 @@ struct MediaCardView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .shadow(color: .black.opacity(0.5), radius: 6, y: 4)
 
-                // Feedback badge
+                // Heart badge
+                let inList = watchHistory.isInWatchlist(item.id)
+                Button {
+                    if inList { watchHistory.removeFromWatchlist(item.id) }
+                    else { watchHistory.saveToWatchlist(item) }
+                } label: {
+                    Image(systemName: inList ? "heart.fill" : "heart")
+                        .font(.caption.bold())
+                        .foregroundStyle(inList ? .pink : .white)
+                        .padding(5)
+                        .background(.black.opacity(0.45))
+                        .clipShape(Circle())
+                }
+                .padding(6)
+
+                // Feedback badge (thumbs)
                 if let fb = watchHistory.feedback[item.id] {
                     Image(systemName: fb == .liked ? "hand.thumbsup.fill" : "hand.thumbsdown.fill")
                         .font(.caption2.bold())
@@ -32,6 +47,7 @@ struct MediaCardView: View {
                         .background(fb == .liked ? Color.green : Color.red)
                         .clipShape(Circle())
                         .padding(6)
+                        .offset(y: 28)
                 }
             }
 

@@ -6,10 +6,13 @@ struct RecommendationEngine {
 
     /// Score a single item against the user's taste profile (0–1+).
     static func score(_ item: MetaItem, history: WatchHistoryManager) -> Double {
-        // Feedback overrides everything
+        // Watchlist = strongest positive signal (user explicitly saved it)
+        if history.isInWatchlist(item.id) { return 1.8 }
+
+        // Explicit feedback overrides scoring
         switch history.feedback[item.id] {
-        case .liked:    return 1.5   // always surface liked content
-        case .disliked: return 0.0   // permanently suppress
+        case .liked:    return 1.5
+        case .disliked: return 0.0
         case nil: break
         }
 

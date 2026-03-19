@@ -145,6 +145,21 @@ struct DetailView: View {
                 }
                 .disabled(isLoadingStreams)
 
+                // Heart / Watchlist
+                let inList = watchHistory.isInWatchlist(displayItem.id)
+                Button {
+                    if inList { watchHistory.removeFromWatchlist(displayItem.id) }
+                    else { watchHistory.saveToWatchlist(displayItem) }
+                } label: {
+                    Image(systemName: inList ? "heart.fill" : "heart")
+                        .font(.headline)
+                        .foregroundStyle(inList ? .pink : Theme.textPrimary)
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 14)
+                        .background(Theme.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+
                 // Manual stream picker
                 Button {
                     Task {

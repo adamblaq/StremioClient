@@ -14,8 +14,8 @@ struct MainTabView: View {
                 .tabItem { Label("Search", systemImage: "magnifyingglass") }
                 .tag(1)
 
-            DownloadsView()
-                .tabItem { Label("Downloads", systemImage: "arrow.down.circle") }
+            LibraryView()
+                .tabItem { Label("Library", systemImage: "heart") }
                 .tag(2)
 
             AddonsView()
