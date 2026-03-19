@@ -6,8 +6,13 @@ actor AddonClient {
     private let session: URLSession = {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 15
+        config.urlCache = URLCache(memoryCapacity: 8 * 1024 * 1024,
+                                   diskCapacity: 32 * 1024 * 1024)
         return URLSession(configuration: config)
     }()
+
+    // Shared decoder — allocation-free across all fetch calls
+    private let decoder = JSONDecoder()
 
     private var cache: [String: (data: Data, date: Date)] = [:]
     private let cacheTTL: TimeInterval = 300 // 5 minutes
@@ -18,7 +23,7 @@ actor AddonClient {
         let base = Self.baseURL(from: transportUrl)
         let url = URL(string: base + "/manifest.json")!
         let data = try await fetch(url: url)
-        let manifest = try JSONDecoder().decode(ManifestResponse.self, from: data)
+        let manifest = try decoder.decode(ManifestResponse.self, from: data)
         return manifest.toAddon(transportUrl: base)
     }
 
@@ -31,10 +36,7 @@ actor AddonClient {
 
         guard let url = URL(string: path) else { return [] }
         let data = try await fetch(url: url)
-        if let raw = String(data: data.prefix(1000), encoding: .utf8) {
-            print("[AddonClient] catalog response preview:\n\(raw)")
-        }
-        let response = try JSONDecoder().decode(CatalogResponse.self, from: data)
+        let response = try decoder.decode(CatalogResponse.self, from: data)
         return response.metas ?? []
     }
 
@@ -44,7 +46,7 @@ actor AddonClient {
         let path = "\(addon.transportUrl)/meta/\(type)/\(id).json"
         guard let url = URL(string: path) else { return nil }
         let data = try await fetch(url: url)
-        let response = try JSONDecoder().decode(MetaResponse.self, from: data)
+        let response = try decoder.decode(MetaResponse.self, from: data)
         return response.meta
     }
 
@@ -59,7 +61,7 @@ actor AddonClient {
                     let path = "\(addon.transportUrl)/stream/\(type)/\(id).json"
                     guard let url = URL(string: path),
                           let data = try? await self.fetch(url: url),
-                          let response = try? JSONDecoder().decode(StreamsResponse.self, from: data)
+                          let response = try? self.decoder.decode(StreamsResponse.self, from: data)
                     else { return [] }
                     return response.streams
                 }
@@ -90,7 +92,7 @@ actor AddonClient {
                         let path = "\(addon.transportUrl)/catalog/\(type)/\(catalog.id)/search=\(encoded).json"
                         guard let url = URL(string: path),
                               let data = try? await self.fetch(url: url),
-                              let response = try? JSONDecoder().decode(CatalogResponse.self, from: data)
+                              let response = try? self.decoder.decode(CatalogResponse.self, from: data)
                         else { return [] }
                         return response.metas ?? []
                     }

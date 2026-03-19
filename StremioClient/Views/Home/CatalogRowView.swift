@@ -71,28 +71,27 @@ struct CatalogRowView: View {
     }
 }
 
-// Simple shimmer effect for loading skeletons
+// Shimmer using TimelineView — one shared CADisplayLink drives all cards.
+// The old @State + withAnimation(.repeatForever) approach spawned an independent
+// animation per card (up to 24 simultaneous) which hammered the main run loop
+// and caused keyboard lag when tapping into the search bar.
 struct ShimmerModifier: ViewModifier {
-    @State private var phase: CGFloat = 0
-
     func body(content: Content) -> some View {
-        content
-            .overlay(
+        TimelineView(.animation(minimumInterval: 1.0 / 30)) { tl in
+            let t = tl.date.timeIntervalSinceReferenceDate
+            let phase = CGFloat(t.truncatingRemainder(dividingBy: 1.4) / 1.4) * 1.6 - 0.15
+            content.overlay(
                 LinearGradient(
                     gradient: Gradient(stops: [
-                        .init(color: .clear, location: phase - 0.3),
+                        .init(color: .clear,                location: phase - 0.3),
                         .init(color: .white.opacity(0.08), location: phase),
-                        .init(color: .clear, location: phase + 0.3)
+                        .init(color: .clear,                location: phase + 0.3)
                     ]),
                     startPoint: .leading,
                     endPoint: .trailing
                 )
             )
-            .onAppear {
-                withAnimation(.linear(duration: 1.4).repeatForever(autoreverses: false)) {
-                    phase = 1.3
-                }
-            }
+        }
     }
 }
 

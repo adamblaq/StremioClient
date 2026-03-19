@@ -13,6 +13,11 @@ actor TMDBService {
     private let base = "https://api.themoviedb.org/3"
     private let imageBase = "https://image.tmdb.org/t/p/w500"
     private let session = URLSession.shared
+    private let decoder = JSONDecoder()
+
+    // Cache resolved recommendations to avoid re-fetching same IMDB chains across app launches
+    private var recommendationCache: [String: [MetaItem]] = [:]   // keyed by imdbId
+    private var searchCache: [String: MetaItem?] = [:]             // keyed by "title|year|type"
 
     // MARK: - Public
 
@@ -23,6 +28,8 @@ actor TMDBService {
         apiKey: String
     ) async -> [MetaItem] {
         guard !apiKey.isEmpty else { return [] }
+
+        if let cached = recommendationCache[imdbId] { return cached }
 
         guard let (tmdbId, mediaType) = await findTMDB(imdbId: imdbId, apiKey: apiKey)
         else { return [] }
@@ -42,6 +49,7 @@ actor TMDBService {
             for await item in group {
                 if let item { items.append(item) }
             }
+            recommendationCache[imdbId] = items
             return items
         }
     }
@@ -52,7 +60,7 @@ actor TMDBService {
         guard let url = URL(string: "\(base)/find/\(imdbId)?external_source=imdb_id&api_key=\(apiKey)")
         else { return nil }
         guard let data = try? await session.data(from: url).0,
-              let resp = try? JSONDecoder().decode(FindResponse.self, from: data)
+              let resp = try? decoder.decode(FindResponse.self, from: data)
         else { return nil }
 
         if let movie = resp.movie_results.first { return (movie.id, "movie") }
@@ -68,7 +76,7 @@ actor TMDBService {
         guard let url = URL(string: "\(base)/\(mediaType)/\(tmdbId)/recommendations?api_key=\(apiKey)")
         else { return [] }
         guard let data = try? await session.data(from: url).0,
-              let resp = try? JSONDecoder().decode(RecommendationsResponse.self, from: data)
+              let resp = try? decoder.decode(RecommendationsResponse.self, from: data)
         else { return [] }
         return resp.results
     }
@@ -81,7 +89,7 @@ actor TMDBService {
         guard let url = URL(string: "\(base)/\(mediaType)/\(result.id)/external_ids?api_key=\(apiKey)")
         else { return nil }
         guard let data = try? await session.data(from: url).0,
-              let ext = try? JSONDecoder().decode(ExternalIds.self, from: data),
+              let ext = try? decoder.decode(ExternalIds.self, from: data),
               let imdbId = ext.imdb_id, !imdbId.isEmpty
         else { return nil }
 
@@ -114,6 +122,9 @@ actor TMDBService {
     /// Search TMDB by title + year, resolve to IMDB ID, return a lightweight MetaItem.
     func searchMetaItem(title: String, year: String?, type: String, apiKey: String) async -> MetaItem? {
         guard !apiKey.isEmpty else { return nil }
+        let cacheKey = "\(title)|\(year ?? "")|\(type)"
+        if let cached = searchCache[cacheKey] { return cached }
+
         let endpoint = type == "series" ? "tv" : "movie"
         var components = URLComponents(string: "\(base)/search/\(endpoint)")!
         components.queryItems = [
@@ -126,11 +137,16 @@ actor TMDBService {
         }
         guard let url = components.url,
               let data = try? await session.data(from: url).0,
-              let resp = try? JSONDecoder().decode(SearchResponse.self, from: data),
+              let resp = try? decoder.decode(SearchResponse.self, from: data),
               let first = resp.results.first
-        else { return nil }
+        else {
+            searchCache[cacheKey] = nil
+            return nil
+        }
 
-        return await resolveToMetaItem(result: first, mediaType: endpoint, apiKey: apiKey)
+        let result = await resolveToMetaItem(result: first, mediaType: endpoint, apiKey: apiKey)
+        searchCache[cacheKey] = result
+        return result
     }
 
     private struct SearchResponse: Codable {

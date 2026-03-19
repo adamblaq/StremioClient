@@ -360,9 +360,18 @@ struct ForYouSectionView: View {
             for await items in group { pool.append(contentsOf: items) }
         }
 
+        // Deduplicate on main actor
         var seen = Set<String>()
-        pool = pool.filter { seen.insert($0.id).inserted }
-        tastePicks = RecommendationEngine.topMatches(from: pool, history: history, limit: 20)
+        let deduped = pool.filter { seen.insert($0.id).inserted }
+
+        // Build scoring context on main actor (reads @Observable history),
+        // then run the actual scoring in a background task so the main thread
+        // stays free for animations and gesture handling.
+        let ctx = RecommendationEngine.ScoringContext(history: history)
+        tastePicks = await Task.detached(priority: .userInitiated) {
+            RecommendationEngine.topMatchesWithContext(from: deduped, ctx: ctx, limit: 20)
+        }.value
+
         isLoadingTaste = false
     }
 

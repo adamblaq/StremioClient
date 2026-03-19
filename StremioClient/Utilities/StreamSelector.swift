@@ -126,12 +126,29 @@ struct StreamSelector {
 
 private extension String {
     /// Returns the content of the first capture group of a regex match.
+    /// Uses a shared cache so NSRegularExpression is compiled only once per pattern.
     func firstMatch(pattern: String) -> String? {
-        guard let regex = try? NSRegularExpression(pattern: pattern),
+        guard let regex = cachedRegex(pattern),
               let match = regex.firstMatch(in: self, range: NSRange(self.startIndex..., in: self)),
               match.numberOfRanges > 1,
               let range = Range(match.range(at: 1), in: self)
         else { return nil }
         return String(self[range])
     }
+}
+
+// NSRegularExpression is thread-safe for matching after compilation.
+// Pre-compile all patterns once at startup to avoid repeated allocation in parse().
+private var _regexCache: [String: NSRegularExpression] = {
+    var c: [String: NSRegularExpression] = [:]
+    let patterns = [#"💾\s*([\d.]+)\s*GB"#, #"💾\s*([\d.]+)\s*MB"#, #"👥\s*(\d+)"#]
+    for p in patterns { c[p] = try? NSRegularExpression(pattern: p) }
+    return c
+}()
+
+private func cachedRegex(_ pattern: String) -> NSRegularExpression? {
+    if let existing = _regexCache[pattern] { return existing }
+    let regex = try? NSRegularExpression(pattern: pattern)
+    _regexCache[pattern] = regex
+    return regex
 }

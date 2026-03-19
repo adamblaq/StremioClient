@@ -413,7 +413,6 @@ struct DetailView: View {
             streamId = item.id
         }
 
-        print("[Streams] Fetching id=\(streamId)")
         streams = (try? await AddonClient.shared.fetchStreams(
             from: addonManager.addons, type: type, id: streamId
         )) ?? []
@@ -436,12 +435,6 @@ struct DetailView: View {
     /// Fetches streams and auto-selects the best one based on quality/size/RD cache.
     private func smartPlay(episode: MetaItem.Video? = nil) async {
         await loadStreams(for: episode)
-
-        print("[SmartPlay] Total streams: \(streams.count)")
-        for s in streams {
-            let parsed = StreamSelector.parse(s)
-            print("[SmartPlay] \(s.name ?? "?") | \(s.title ?? "?") | url=\(s.url ?? "nil") | q=\(parsed?.qualityP ?? 0)p | size=\(parsed?.sizeGB.map { "\($0)GB" } ?? "?") | RD=\(parsed?.isRDCached ?? false)")
-        }
 
         if streams.isEmpty {
             print("[SmartPlay] No streams returned by any addon")

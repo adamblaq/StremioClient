@@ -6,7 +6,8 @@ struct RecommendationEngine {
 
     /// All history-derived weights computed once per scoring batch.
     /// Avoids recomputing O(events) decay math for every item in the pool.
-    private struct ScoringContext {
+    /// Sendable so it can be passed into Task.detached for off-actor scoring.
+    struct ScoringContext: Sendable {
         let genreW: [String: Double]
         let dirW: [String: Double]
         let castW: [String: Double]
@@ -88,9 +89,22 @@ struct RecommendationEngine {
         maxPerGenre: Int = 3
     ) -> [MetaItem] {
         guard !history.events.isEmpty else { return [] }
+        return topMatchesWithContext(
+            from: items,
+            ctx: ScoringContext(history: history),
+            minScore: minScore, limit: limit, maxPerGenre: maxPerGenre
+        )
+    }
 
-        let ctx = ScoringContext(history: history)  // computed once
-
+    /// Off-actor entry point: accepts a pre-built ScoringContext (Sendable) so
+    /// scoring can run inside Task.detached without touching @Observable state.
+    static func topMatchesWithContext(
+        from items: [MetaItem],
+        ctx: ScoringContext,
+        minScore: Double = 0.04,
+        limit: Int = 20,
+        maxPerGenre: Int = 3
+    ) -> [MetaItem] {
         let scored = items
             .map { ($0, score($0, ctx: ctx)) }
             .filter { $0.1 >= minScore }
