@@ -100,7 +100,6 @@ struct PlayerView: View {
         // Fall back to a reasonable episode/movie length so isInProgress stays true.
         var duration = player.currentItem?.duration.seconds ?? 0
         if !duration.isFinite || duration < 10 {
-            // Estimate: 45 min for series episodes, 2 hrs for movies
             let isMovie = (meta.type ?? "movie") == "movie"
             duration = isMovie ? 7200 : 2700
         }

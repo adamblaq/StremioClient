@@ -73,9 +73,20 @@ struct Download: Identifiable, Codable {
     var totalMB: Double { Double(totalBytes) / 1_048_576 }
     var speedMBps: Double { speedBytesPerSecond / 1_048_576 }
 
+    // Documents directory resolved at runtime so the path stays valid
+    // even if the app container UUID changes between installs.
+    private static var documentsDir: URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    }
+
     var localFileURL: URL? {
-        guard let path = localPath else { return nil }
-        return URL(fileURLWithPath: path)
+        guard let filename = localPath else { return nil }
+        // Support both legacy full-paths and new filename-only storage.
+        if filename.hasPrefix("/") {
+            // Legacy: full absolute path — rebase to current documents dir
+            return Self.documentsDir.appendingPathComponent(URL(fileURLWithPath: filename).lastPathComponent)
+        }
+        return Self.documentsDir.appendingPathComponent(filename)
     }
 
     var isPlayable: Bool { status == .completed && localFileURL != nil }

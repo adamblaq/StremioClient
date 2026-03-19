@@ -22,14 +22,11 @@ struct PlaybackProgress: Identifiable, Codable {
     }
 
     /// True when worth showing in Continue Watching.
-    /// Uses completion % when duration is known; falls back to raw seconds (> 60s) otherwise.
+    /// Shows after 30 seconds watched; hides once 92%+ complete.
     var isInProgress: Bool {
-        if durationSeconds > 10 {
-            let p = completionPercent
-            return p >= 0.03 && p < 0.92
-        }
-        // Duration unknown — show if watched more than 1 minute
-        return resumeSeconds > 60
+        guard resumeSeconds >= 30 else { return false }
+        guard durationSeconds <= 0 || completionPercent < 0.92 else { return false }
+        return true
     }
 
     var episodeLabel: String? {

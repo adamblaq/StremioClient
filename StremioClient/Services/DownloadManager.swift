@@ -52,8 +52,8 @@ class DownloadManager: NSObject {
         activeTasks[download.id]?.cancel()
         activeTasks.removeValue(forKey: download.id)
         speedSamples.removeValue(forKey: download.id)
-        if let path = download.localPath {
-            try? FileManager.default.removeItem(atPath: path)
+        if let url = download.localFileURL {
+            try? FileManager.default.removeItem(at: url)
         }
         downloads.removeAll { $0.id == download.id }
         saveToDisk()
@@ -122,7 +122,7 @@ class DownloadManager: NSObject {
         let ext = raw.isEmpty ? "mp4" : raw
         let dest = documentsDir.appendingPathComponent("\(id.uuidString).\(ext)")
         try? FileManager.default.moveItem(at: tempURL, to: dest)
-        downloads[i].localPath = dest.path
+        downloads[i].localPath = dest.lastPathComponent   // filename only — path rebased at runtime
         downloads[i].status = .completed
         downloads[i].progress = 1.0
         downloads[i].speedBytesPerSecond = 0
