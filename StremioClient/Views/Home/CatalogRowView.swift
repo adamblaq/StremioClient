@@ -11,49 +11,47 @@ struct CatalogRowView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.title3.bold())
-                .foregroundStyle(Theme.textPrimary)
-                .padding(.horizontal)
+        // Hide the row entirely when loaded with nothing — avoids empty Torrentio
+        // catalog rows and prevents LazyVStack height jumps on scroll.
+        if !isLoading && items.isEmpty {
+            EmptyView()
+        } else {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(title)
+                    .font(.title3.bold())
+                    .foregroundStyle(Theme.textPrimary)
+                    .padding(.horizontal)
 
-            if isLoading {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(0..<6, id: \.self) { _ in
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(Theme.surface)
-                                .frame(width: Theme.cardWidth, height: Theme.cardHeight)
-                                .shimmering()
-                        }
-                    }
-                    .padding(.horizontal)
-                }
-            } else if let error = errorMessage {
-                Text("Error: \(error)")
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .padding(.horizontal)
-            } else if items.isEmpty {
-                Text("No content available")
-                    .font(.caption)
-                    .foregroundStyle(Theme.textSecondary)
-                    .padding(.horizontal)
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: 12) {
-                        ForEach(items) { item in
-                            NavigationLink(value: item) {
-                                MediaCardView(item: item)
+                if isLoading {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            ForEach(0..<6, id: \.self) { _ in
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(Theme.surface)
+                                    .frame(width: Theme.cardWidth, height: Theme.cardHeight)
+                                    .shimmering()
                             }
-                            .buttonStyle(.plain)
                         }
+                        .padding(.horizontal)
                     }
-                    .padding(.horizontal)
+                } else {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        LazyHStack(spacing: 12) {
+                            ForEach(items) { item in
+                                NavigationLink(value: item) {
+                                    MediaCardView(item: item)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
                 }
             }
+            // Stable height while loading so LazyVStack doesn't jump when content arrives
+            .frame(minHeight: isLoading ? Theme.cardHeight + 49 : 0, alignment: .top)
+            .task { await load() }
         }
-        .task { await load() }
     }
 
     private func load() async {
