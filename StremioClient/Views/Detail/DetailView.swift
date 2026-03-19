@@ -19,15 +19,8 @@ struct DetailView: View {
     @State private var selectedSeason: Int = 1
     @State private var loadingEpisode: MetaItem.Video?   // which episode row is spinning
     @State private var activeEpisode: MetaItem.Video?    // episode being played (for PlayerView)
-    @State private var trailerActive = false
-    @State private var trailerMuted = true
 
     private var displayItem: MetaItem { fullMeta ?? item }
-
-    private var trailerVideoId: String? {
-        fullMeta?.trailers?.first(where: { $0.type == "Trailer" })?.source
-            ?? fullMeta?.trailers?.first?.source
-    }
 
     // MARK: - Computed helpers for series
 
@@ -85,15 +78,6 @@ struct DetailView: View {
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await loadMeta() }
-        // Auto-play trailer after meta loads (trailerVideoId becomes non-nil)
-        .task(id: trailerVideoId) {
-            guard trailerVideoId != nil else { return }
-            try? await Task.sleep(for: .seconds(1.5))
-            guard !Task.isCancelled, trailerVideoId != nil else { return }
-            trailerMuted = !appState.trailerAutoplaySound
-            trailerActive = true
-        }
-        .onDisappear { trailerActive = false }
         .sheet(isPresented: $showStreamPicker) {
             StreamPickerView(streams: streams, meta: displayItem) { stream in
                 selectedStream = stream
@@ -236,21 +220,13 @@ struct DetailView: View {
         .padding()
         .frame(maxWidth: .infinity, minHeight: 340, alignment: .bottomLeading)
         .background {
-            ZStack {
-                AsyncImage(url: displayItem.backgroundURL ?? displayItem.posterURL) { phase in
-                    switch phase {
-                    case .success(let image): image.resizable().scaledToFill()
-                    default: Theme.surface
-                    }
-                }
-                .clipped()
-
-                if trailerActive, let vid = trailerVideoId {
-                    YouTubePlayerView(videoId: vid, muted: trailerMuted)
-                        .transition(.opacity)
+            AsyncImage(url: displayItem.backgroundURL ?? displayItem.posterURL) { phase in
+                switch phase {
+                case .success(let image): image.resizable().scaledToFill()
+                default: Theme.surface
                 }
             }
-            .animation(.easeIn(duration: 0.8), value: trailerActive)
+            .clipped()
             .overlay {
                 LinearGradient(
                     stops: [
@@ -262,22 +238,6 @@ struct DetailView: View {
                 )
             }
         }
-        .overlay(alignment: .topTrailing) {
-            if trailerActive {
-                Button { trailerMuted.toggle() } label: {
-                    Image(systemName: trailerMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                        .font(.body)
-                        .foregroundStyle(.white)
-                        .padding(10)
-                        .background(.black.opacity(0.5))
-                        .clipShape(Circle())
-                }
-                .padding(.top, 52)
-                .padding(.trailing, 16)
-                .transition(.opacity)
-            }
-        }
-        .animation(.easeInOut(duration: 0.3), value: trailerActive)
     }
 
     private var smartPlayLabel: String {

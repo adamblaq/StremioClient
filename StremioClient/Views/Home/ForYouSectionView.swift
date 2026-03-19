@@ -45,7 +45,7 @@ struct ForYouSectionView: View {
                 if isLoadingBecause && becauseRows.isEmpty {
                     skeletonRow(title: "Because You Watched…")
                 }
-                ForEach(becauseRows, id: \.title) { row in
+                ForEach(Array(becauseRows.enumerated()), id: \.offset) { _, row in
                     metaItemRow(title: "Because you watched \(row.title)", items: row.items)
                 }
 
